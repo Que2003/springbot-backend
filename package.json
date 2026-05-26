@@ -1,0 +1,12 @@
+{
+  "name": "springbot-backend",
+  "version": "1.0.0",
+  "description": "Shared presence and assistant API for Spring Virtual Office",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
