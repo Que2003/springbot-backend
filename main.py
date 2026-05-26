@@ -1,12 +1,12 @@
 import os
+import anthropic
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from openai import OpenAI
 
 app = FastAPI(title="SpringBot Backend")
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,20 +27,21 @@ Keep responses clean, modern, and concise.
 
 @app.get("/")
 async def root():
-    return {"status": "SpringBot backend is running"}
+    return {"status": "SpringBot Anthropic backend is running"}
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
     try:
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = client.messages.create(
+            model="claude-3-5-haiku-latest",
+            max_tokens=700,
+            system=SYSTEM_PROMPT,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": req.message}
             ]
         )
 
-        return {"reply": completion.choices[0].message.content}
+        return {"reply": response.content[0].text}
 
     except Exception as e:
         return {"reply": f"Server error: {str(e)}"}
