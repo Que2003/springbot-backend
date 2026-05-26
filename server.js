@@ -56,6 +56,14 @@ function safeText(value, limit) {
   return String(value || "").trim().slice(0, limit);
 }
 
+function safeConversation(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(-10).map(turn => ({
+    role: turn && turn.role === "assistant" ? "Assistant" : "User",
+    content: safeText(turn && turn.content, 2500)
+  })).filter(turn => turn.content);
+}
+
 function structuredRecap(text) {
   const compact = text.replace(/\s+/g, " ").trim();
   const sentences = compact.split(/(?<=[.!?])\s+/).filter(Boolean);
@@ -91,12 +99,7 @@ async function askModel(instructions, input) {
       "Authorization": `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      instructions,
-      input,
-      max_output_tokens: 700
-    })
+    body: JSON.stringify({ model: OPENAI_MODEL, instructions, input, max_output_tokens: 1000 })
   });
   if (!response.ok) throw new Error(`AI service returned ${response.status}`);
   return extractOutputText(await response.json());
@@ -138,11 +141,18 @@ async function handle(req, res) {
     const body = await readBody(req);
     const message = safeText(body.message, 3000);
     if (!message) return send(res, 400, { error: "message is required" });
+    const turns = safeConversation(body.history);
+    const context = body.context || {};
+    const workspace = [
+      `Active room: ${safeText(context.room, 80) || "Unknown"}`,
+      `User status: ${safeText(context.status, 40) || "Unknown"}`
+    ].join("\n");
+    const transcript = turns.length ? turns.map(turn => `${turn.role}: ${turn.content}`).join("\n") : `User: ${message}`;
     const reply = await askModel(
-      "You are SpringBot inside Spring Virtual Office. Help with meeting agendas, focus plans, room collaboration, and concise work questions. Be practical and brief.",
-      message
+      "You are SpringBot, a capable assistant inside Spring Office. Help users think, draft, brainstorm, prioritize, make agendas, summarize work, and answer open-ended workplace questions. Use workspace context only when relevant. Do not claim to see files, connected accounts, or people beyond the supplied context. Be clear, helpful, and concise unless the user asks for detail.",
+      `WORKSPACE CONTEXT\n${workspace}\n\nCONVERSATION\n${transcript}`
     );
-    return send(res, 200, { mode: reply ? "ai" : "setup", reply: reply || "The assistant API is connected, but AI is not configured yet. Add OPENAI_API_KEY and OPENAI_MODEL on the backend host to activate responses." });
+    return send(res, 200, { mode: reply ? "ai" : "setup", reply: reply || "The assistant backend is connected, but AI is not enabled yet. Add an AI API key and model to the backend service to activate intelligent answers." });
   }
   return send(res, 404, { error: "Not found" });
 }
